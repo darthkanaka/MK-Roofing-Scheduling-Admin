@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Murakami Roofing - Availability Manager</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0a0a0a;
+      --bg-secondary: #141414;
+      --bg-card: #1a1a1a;
+      --bg-hover: #242424;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0a0;
+      --text-muted: #606060;
+      --accent: #e85a4f;
+      --accent-hover: #ff6b5f;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --danger: #ef4444;
+      --border: #2a2a2a;
+      --border-light: #333333;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .app-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+
+    .header {
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .title {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin-top: 8px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 32px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+    }
+
+    .card-body {
+      padding: 24px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+
+    .calendar-header {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 8px 4px;
+      text-transform: uppercase;
+    }
+
+    .calendar-day {
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: default;
+      transition: all 0.15s ease;
+      position: relative;
+      background: var(--bg-secondary);
+      border: 1px solid transparent;
+    }
+
+    .calendar-day.empty {
+      background: transparent;
+    }
+
+    .calendar-day.inactive {
+      color: var(--text-muted);
+      background: transparent;
+    }
+
+    .calendar-day.available {
+      background: rgba(74, 222, 128, 0.1);
+      border-color: rgba(74, 222, 128, 0.3);
+      color: var(--success);
+    }
+
+    .calendar-day.limited {
+      background: rgba(251, 191, 36, 0.1);
+      border-color: rgba(251, 191, 36, 0.3);
+      color: var(--warning);
+    }
+
+    .calendar-day.full {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--danger);
+    }
+
+    .calendar-day.special {
+      position: relative;
+    }
+
+    .calendar-day.special::after {
+      content: '★';
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      font-size: 8px;
+      color: var(--accent);
+    }
+
+    .calendar-day .slots {
+      font-family: 'Space Mono', monospace;
+      font-size: 10px;
+      margin-top: 2px;
+      opacity: 0.8;
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .month-nav button {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .month-nav button:hover {
+      background: var(--bg-hover);
+      border-color: var(--border-light);
+    }
+
+    .month-label {
+      font-family: 'Space Mono', monospace;
+      font-size: 13px;
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+    }
+
+    .legend-dot.available { background: rgba(74, 222, 128, 0.3); border: 1px solid var(--success); }
+    .legend-dot.limited { background: rgba(251, 191, 36, 0.3); border: 1px solid var(--warning); }
+    .legend-dot.full { background: rgba(239, 68, 68, 0.3); border: 1px solid var(--danger); }
+    .legend-dot.special { background: var(--accent); }
+
+    .special-dates-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .special-date-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+
+    .special-date-item:hover {
+      border-color: var(--border-light);
+    }
+
+    .special-date-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .special-date-date {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .special-date-day {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .special-date-notes {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .delete-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .delete-btn:hover {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    .add-form {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      margin-top: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      transition: all 0.15s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      gap: 12px;
+    }
+
+    .submit-btn {
+      background: var(--accent);
+      border: none;
+      color: white;
+      padding: 14px 24px;
+      border-radius: 8px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .submit-btn:hover {
+      background: var(--accent-hover);
+    }
+
+    .submit-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 32px;
+      margin-bottom: 12px;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 12px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 16px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+    }
+
+    .toast.success {
+      border-color: var(--success);
+    }
+
+    .toast.error {
+      border-color: var(--danger);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .refresh-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Supabase configuration
+    const SUPABASE_URL = 'https://buasiiuvzxpbzrpqlnfy.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1YXNpaXV2enhwYnpycHFsbmZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI2NDM4MzgsImV4cCI6MjA3ODIxOTgzOH0.sQ2E0xm6MfMqUE5BBvvcIryNvFb-0anxvW3KvmabGC0';
+    
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function App() {
+      const [quotas, setQuotas] = useState([]);
+      const [specialDates, setSpecialDates] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [currentMonth, setCurrentMonth] = useState(new Date());
+      const [toast, setToast] = useState(null);
+      
+      // Form state
+      const [newDate, setNewDate] = useState('');
+      const [newSlots, setNewSlots] = useState('3');
+      const [newNotes, setNewNotes] = useState('');
+      const [submitting, setSubmitting] = useState(false);
+
+      useEffect(() => {
+        fetchData();
+      }, []);
+
+      useEffect(() => {
+        if (toast) {
+          const timer = setTimeout(() => setToast(null), 3000);
+          return () => clearTimeout(timer);
+        }
+      }, [toast]);
+
+      async function fetchData() {
+        setLoading(true);
+        try {
+          const [quotasRes, specialRes] = await Promise.all([
+            supabase.from('appointment_quotas').select('*').order('date', { ascending: true }),
+            supabase.from('special_dates').select('*').order('date', { ascending: true })
+          ]);
+
+          if (quotasRes.error) throw quotasRes.error;
+          if (specialRes.error) throw specialRes.error;
+
+          setQuotas(quotasRes.data || []);
+          setSpecialDates(specialRes.data || []);
+        } catch (error) {
+          console.error('Error fetching data:', error);
+          showToast('Failed to load data', 'error');
+        }
+        setLoading(false);
+      }
+
+      function showToast(message, type = 'success') {
+        setToast({ message, type });
+      }
+
+      async function handleAddSpecialDate(e) {
+        e.preventDefault();
+        if (!newDate) return;
+
+        setSubmitting(true);
+        try {
+          const { error } = await supabase.from('special_dates').insert({
+            date: newDate,
+            available_slots: parseInt(newSlots) || 3,
+            notes: newNotes || null
+          });
+
+          if (error) throw error;
+
+          showToast('Special date added successfully');
+          setNewDate('');
+          setNewSlots('3');
+          setNewNotes('');
+          fetchData();
+        } catch (error) {
+          console.error('Error adding special date:', error);
+          showToast(error.message || 'Failed to add date', 'error');
+        }
+        setSubmitting(false);
+      }
+
+      async function handleDeleteSpecialDate(date) {
+        if (!confirm(`Remove ${formatDate(date)} from special dates?`)) return;
+
+        try {
+          const { error } = await supabase.from('special_dates').delete().eq('date', date);
+          if (error) throw error;
+
+          showToast('Special date removed');
+          fetchData();
+        } catch (error) {
+          console.error('Error deleting special date:', error);
+          showToast('Failed to remove date', 'error');
+        }
+      }
+
+      function formatDate(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { 
+          weekday: 'short', 
+          month: 'short', 
+          day: 'numeric',
+          year: 'numeric'
+        });
+      }
+
+      function getDayName(dateStr) {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', { weekday: 'long' });
+      }
+
+      function getCalendarDays() {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+        
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startPadding = firstDay.getDay();
+        
+        const days = [];
+        
+        // Add empty cells for padding
+        for (let i = 0; i < startPadding; i++) {
+          days.push({ empty: true });
+        }
+        
+        // Add actual days
+        for (let d = 1; d <= lastDay.getDate(); d++) {
+          const date = new Date(year, month, d);
+          const dateStr = date.toISOString().split('T')[0];
+          const dayOfWeek = date.getDay();
+          
+          const quota = quotas.find(q => q.date === dateStr);
+          const isSpecial = specialDates.some(s => s.date === dateStr);
+          const isWorkday = [1, 3, 5].includes(dayOfWeek) || isSpecial;
+          const isPast = date < new Date(new Date().toDateString());
+          
+          days.push({
+            day: d,
+            date: dateStr,
+            quota,
+            isSpecial,
+            isWorkday,
+            isPast
+          });
+        }
+        
+        return days;
+      }
+
+      function getSlotStatus(quota) {
+        if (!quota) return 'inactive';
+        if (quota.available_slots >= 2) return 'available';
+        if (quota.available_slots === 1) return 'limited';
+        return 'full';
+      }
+
+      const calendarDays = getCalendarDays();
+      const monthLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+      if (loading) {
+        return (
+          <div className="app-container">
+            <div className="loading">
+              <div className="spinner"></div>
+              Loading...
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="app-container">
+          <header className="header">
+            <div className="header-top">
+              <div>
+                <div className="logo">Murakami Roofing</div>
+                <h1 className="title">Availability Manager</h1>
+                <p className="subtitle">Manage inspector availability and special dates</p>
+              </div>
+              <div className="status-badge">
+                <div className="status-dot"></div>
+                Connected
+              </div>
+            </div>
+          </header>
+
+          <div className="grid">
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Appointment Calendar</span>
+                <div className="month-nav">
+                  <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}>
+                    ←
+                  </button>
+                  <span className="month-label">{monthLabel}</span>
+                  <button onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}>
+                    →
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="calendar-grid">
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="calendar-header">{day}</div>
+                  ))}
+                  {calendarDays.map((day, i) => (
+                    <div 
+                      key={i} 
+                      className={`calendar-day ${day.empty ? 'empty' : ''} ${day.isPast ? 'inactive' : ''} ${!day.empty && !day.isPast && day.isWorkday ? getSlotStatus(day.quota) : ''} ${day.isSpecial ? 'special' : ''}`}
+                    >
+                      {!day.empty && (
+                        <>
+                          {day.day}
+                          {day.quota && day.isWorkday && !day.isPast && (
+                            <span className="slots">{day.quota.available_slots}/{day.quota.available_slots + day.quota.quota_used}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="legend">
+                  <div className="legend-item">
+                    <div className="legend-dot available"></div>
+                    Available (2-3)
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-dot limited"></div>
+                    Limited (1)
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-dot full"></div>
+                    Full (0)
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-dot special"></div>
+                    ★ Special Date
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Special Dates</span>
+                <button className="refresh-btn" onClick={fetchData}>
+                  ↻ Refresh
+                </button>
+              </div>
+              <div className="card-body">
+                {specialDates.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-state-icon">📅</div>
+                    <p>No special dates added yet</p>
+                  </div>
+                ) : (
+                  <div className="special-dates-list">
+                    {specialDates.map(sd => (
+                      <div key={sd.date} className="special-date-item">
+                        <div className="special-date-info">
+                          <div className="special-date-date">{formatDate(sd.date)}</div>
+                          <div className="special-date-day">{getDayName(sd.date)} • {sd.available_slots} slots</div>
+                          {sd.notes && <div className="special-date-notes">{sd.notes}</div>}
+                        </div>
+                        <button 
+                          className="delete-btn"
+                          onClick={() => handleDeleteSpecialDate(sd.date)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <form className="add-form" onSubmit={handleAddSpecialDate}>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">Date</label>
+                      <input 
+                        type="date" 
+                        className="form-input"
+                        value={newDate}
+                        onChange={(e) => setNewDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Slots</label>
+                      <input 
+                        type="number" 
+                        className="form-input"
+                        value={newSlots}
+                        onChange={(e) => setNewSlots(e.target.value)}
+                        min="1"
+                        max="10"
+                      />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Notes (optional)</label>
+                    <input 
+                      type="text" 
+                      className="form-input"
+                      placeholder="e.g., Inspector special request"
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                    />
+                  </div>
+                  <button type="submit" className="submit-btn" disabled={submitting || !newDate}>
+                    {submitting ? 'Adding...' : 'Add Special Date'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          {toast && (
+            <div className={`toast ${toast.type}`}>
+              {toast.message}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
