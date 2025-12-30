@@ -9,32 +9,15 @@ A simple admin portal to manage inspector availability and special dates.
 - 🗑️ **Remove Dates** - Easy removal of special dates
 - 🔄 **Real-time** - Connected directly to your Supabase database
 
-## Deployment
+## Deployment to GitHub Pages
 
-### Option 1: Vercel (Recommended)
-
-1. Push this repo to GitHub
-2. Go to [vercel.com](https://vercel.com) and sign in with GitHub
-3. Click "New Project" → Import your repo
-4. Click "Deploy"
-5. Done! You'll get a URL like `https://murakami-portal.vercel.app`
-
-### Option 2: Netlify
-
-1. Push this repo to GitHub
-2. Go to [netlify.com](https://netlify.com) and sign in with GitHub
-3. Click "Add new site" → "Import an existing project"
-4. Select your repo
-5. Click "Deploy"
-6. Done! You'll get a URL like `https://murakami-portal.netlify.app`
-
-### Option 3: GitHub Pages
-
-1. Go to your repo Settings → Pages
-2. Under "Source", select "Deploy from a branch"
-3. Select `main` branch and `/ (root)` folder
-4. Click Save
-5. Your site will be at `https://yourusername.github.io/repo-name`
+1. Create a new repository on GitHub
+2. Upload `index.html` and this `README.md` to the repo
+3. Go to **Settings** → **Pages**
+4. Under "Source", select **Deploy from a branch**
+5. Select `main` branch and `/ (root)` folder
+6. Click **Save**
+7. Your site will be live at `https://yourusername.github.io/repo-name`
 
 ## n8n Workflow Update
 
