@@ -218,6 +218,19 @@
       color: var(--accent);
     }
 
+    .calendar-day.vacation {
+      background: rgba(168, 85, 247, 0.15);
+      border-color: rgba(168, 85, 247, 0.4);
+      color: #a855f7;
+    }
+
+    .calendar-day.vacation::before {
+      content: '✕';
+      position: absolute;
+      font-size: 8px;
+      opacity: 0.6;
+    }
+
     .calendar-day .slots {
       font-family: 'Space Mono', monospace;
       font-size: 10px;
@@ -284,6 +297,7 @@
     .legend-dot.limited { background: rgba(251, 191, 36, 0.3); border: 1px solid var(--warning); }
     .legend-dot.full { background: rgba(239, 68, 68, 0.3); border: 1px solid var(--danger); }
     .legend-dot.special { background: var(--accent); }
+    .legend-dot.vacation { background: rgba(168, 85, 247, 0.3); border: 1px solid #a855f7; }
 
     .special-dates-list {
       display: flex;
@@ -417,6 +431,79 @@
       cursor: not-allowed;
     }
 
+    .date-range-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .vacation-section {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 3px;
+      height: 16px;
+      background: #a855f7;
+      border-radius: 2px;
+    }
+
+    .vacation-range-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px;
+      background: rgba(168, 85, 247, 0.05);
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+
+    .vacation-range-item:hover {
+      border-color: rgba(168, 85, 247, 0.4);
+    }
+
+    .vacation-range-dates {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: #a855f7;
+    }
+
+    .vacation-range-count {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .vacation-range-notes {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    .panels-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
     .empty-state {
       text-align: center;
       padding: 40px 20px;
@@ -517,15 +604,22 @@
     function App() {
       const [quotas, setQuotas] = useState([]);
       const [specialDates, setSpecialDates] = useState([]);
+      const [vacationDays, setVacationDays] = useState([]);
       const [loading, setLoading] = useState(true);
       const [currentMonth, setCurrentMonth] = useState(new Date());
       const [toast, setToast] = useState(null);
-      
-      // Form state
+
+      // Special date form state
       const [newDate, setNewDate] = useState('');
       const [newSlots, setNewSlots] = useState('3');
       const [newNotes, setNewNotes] = useState('');
       const [submitting, setSubmitting] = useState(false);
+
+      // Vacation form state
+      const [vacStartDate, setVacStartDate] = useState('');
+      const [vacEndDate, setVacEndDate] = useState('');
+      const [vacNotes, setVacNotes] = useState('');
+      const [vacSubmitting, setVacSubmitting] = useState(false);
 
       useEffect(() => {
         fetchData();
@@ -541,16 +635,19 @@
       async function fetchData() {
         setLoading(true);
         try {
-          const [quotasRes, specialRes] = await Promise.all([
+          const [quotasRes, specialRes, vacationRes] = await Promise.all([
             supabase.from('appointment_quotas').select('*').order('date', { ascending: true }),
-            supabase.from('special_dates').select('*').order('date', { ascending: true })
+            supabase.from('special_dates').select('*').order('date', { ascending: true }),
+            supabase.from('vacation_days').select('*').order('date', { ascending: true })
           ]);
 
           if (quotasRes.error) throw quotasRes.error;
           if (specialRes.error) throw specialRes.error;
+          if (vacationRes.error) throw vacationRes.error;
 
           setQuotas(quotasRes.data || []);
           setSpecialDates(specialRes.data || []);
+          setVacationDays(vacationRes.data || []);
         } catch (error) {
           console.error('Error fetching data:', error);
           showToast('Failed to load data', 'error');
@@ -603,6 +700,106 @@
         }
       }
 
+      // Get all dates between start and end (inclusive)
+      function getDateRange(startDate, endDate) {
+        const dates = [];
+        const current = new Date(startDate + 'T00:00:00');
+        const end = new Date(endDate + 'T00:00:00');
+
+        while (current <= end) {
+          dates.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+
+        return dates;
+      }
+
+      async function handleAddVacation(e) {
+        e.preventDefault();
+        if (!vacStartDate || !vacEndDate) return;
+
+        if (vacEndDate < vacStartDate) {
+          showToast('End date must be after start date', 'error');
+          return;
+        }
+
+        setVacSubmitting(true);
+        try {
+          const dates = getDateRange(vacStartDate, vacEndDate);
+          const insertData = dates.map(date => ({
+            date: date,
+            notes: vacNotes || null
+          }));
+
+          const { error } = await supabase.from('vacation_days').upsert(insertData, { onConflict: 'date' });
+          if (error) throw error;
+
+          showToast(`Added ${dates.length} vacation day${dates.length > 1 ? 's' : ''}`);
+          setVacStartDate('');
+          setVacEndDate('');
+          setVacNotes('');
+          fetchData();
+        } catch (error) {
+          console.error('Error adding vacation:', error);
+          showToast(error.message || 'Failed to add vacation', 'error');
+        }
+        setVacSubmitting(false);
+      }
+
+      async function handleDeleteVacationRange(dates) {
+        const rangeStr = dates.length === 1
+          ? formatDate(dates[0])
+          : `${formatDate(dates[0])} - ${formatDate(dates[dates.length - 1])}`;
+
+        if (!confirm(`Remove vacation: ${rangeStr}?`)) return;
+
+        try {
+          const { error } = await supabase
+            .from('vacation_days')
+            .delete()
+            .in('date', dates);
+
+          if (error) throw error;
+
+          showToast('Vacation removed');
+          fetchData();
+        } catch (error) {
+          console.error('Error deleting vacation:', error);
+          showToast('Failed to remove vacation', 'error');
+        }
+      }
+
+      // Group consecutive vacation dates into ranges
+      function groupVacationDays(vacations) {
+        if (vacations.length === 0) return [];
+
+        const sorted = [...vacations].sort((a, b) => a.date.localeCompare(b.date));
+        const ranges = [];
+        let currentRange = {
+          dates: [sorted[0].date],
+          notes: sorted[0].notes
+        };
+
+        for (let i = 1; i < sorted.length; i++) {
+          const prevDate = new Date(currentRange.dates[currentRange.dates.length - 1] + 'T00:00:00');
+          const currDate = new Date(sorted[i].date + 'T00:00:00');
+          const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24);
+
+          if (diffDays === 1 && sorted[i].notes === currentRange.notes) {
+            currentRange.dates.push(sorted[i].date);
+          } else {
+            ranges.push(currentRange);
+            currentRange = {
+              dates: [sorted[i].date],
+              notes: sorted[i].notes
+            };
+          }
+        }
+        ranges.push(currentRange);
+
+        return ranges;
+      }
+
       function formatDate(dateStr) {
         const date = new Date(dateStr + 'T00:00:00');
         return date.toLocaleDateString('en-US', { 
@@ -621,39 +818,41 @@
       function getCalendarDays() {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth();
-        
+
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
         const startPadding = firstDay.getDay();
-        
+
         const days = [];
-        
+
         // Add empty cells for padding
         for (let i = 0; i < startPadding; i++) {
           days.push({ empty: true });
         }
-        
+
         // Add actual days
         for (let d = 1; d <= lastDay.getDate(); d++) {
           const date = new Date(year, month, d);
           const dateStr = date.toISOString().split('T')[0];
           const dayOfWeek = date.getDay();
-          
+
           const quota = quotas.find(q => q.date === dateStr);
           const isSpecial = specialDates.some(s => s.date === dateStr);
+          const isVacation = vacationDays.some(v => v.date === dateStr);
           const isWorkday = [1, 3, 5].includes(dayOfWeek) || isSpecial;
           const isPast = date < new Date(new Date().toDateString());
-          
+
           days.push({
             day: d,
             date: dateStr,
             quota,
             isSpecial,
+            isVacation,
             isWorkday,
             isPast
           });
         }
-        
+
         return days;
       }
 
@@ -713,21 +912,30 @@
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                     <div key={day} className="calendar-header">{day}</div>
                   ))}
-                  {calendarDays.map((day, i) => (
-                    <div 
-                      key={i} 
-                      className={`calendar-day ${day.empty ? 'empty' : ''} ${day.isPast ? 'inactive' : ''} ${!day.empty && !day.isPast && day.isWorkday ? getSlotStatus(day.quota) : ''} ${day.isSpecial ? 'special' : ''}`}
-                    >
-                      {!day.empty && (
-                        <>
-                          {day.day}
-                          {day.quota && day.isWorkday && !day.isPast && (
-                            <span className="slots">{day.quota.available_slots}/{day.quota.available_slots + day.quota.quota_used}</span>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  ))}
+                  {calendarDays.map((day, i) => {
+                    // Vacation days override availability
+                    const dayClasses = [
+                      'calendar-day',
+                      day.empty ? 'empty' : '',
+                      day.isPast ? 'inactive' : '',
+                      day.isVacation && !day.isPast ? 'vacation' : '',
+                      !day.empty && !day.isPast && !day.isVacation && day.isWorkday ? getSlotStatus(day.quota) : '',
+                      day.isSpecial && !day.isVacation ? 'special' : ''
+                    ].filter(Boolean).join(' ');
+
+                    return (
+                      <div key={i} className={dayClasses}>
+                        {!day.empty && (
+                          <>
+                            {day.day}
+                            {day.quota && day.isWorkday && !day.isPast && !day.isVacation && (
+                              <span className="slots">{day.quota.available_slots}/{day.quota.available_slots + day.quota.quota_used}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="legend">
                   <div className="legend-item">
@@ -741,6 +949,10 @@
                   <div className="legend-item">
                     <div className="legend-dot full"></div>
                     Full (0)
+                  </div>
+                  <div className="legend-item">
+                    <div className="legend-dot vacation"></div>
+                    Vacation
                   </div>
                   <div className="legend-item">
                     <div className="legend-dot special"></div>
@@ -821,6 +1033,81 @@
                     {submitting ? 'Adding...' : 'Add Special Date'}
                   </button>
                 </form>
+
+                <div className="vacation-section">
+                  <div className="section-title">Vacation Days</div>
+
+                  {groupVacationDays(vacationDays).length === 0 ? (
+                    <div className="empty-state" style={{padding: '24px 20px'}}>
+                      <div className="empty-state-icon">🏖️</div>
+                      <p>No vacation days scheduled</p>
+                    </div>
+                  ) : (
+                    <div className="special-dates-list">
+                      {groupVacationDays(vacationDays).map((range, idx) => (
+                        <div key={idx} className="vacation-range-item">
+                          <div className="special-date-info">
+                            <div className="vacation-range-dates">
+                              {range.dates.length === 1
+                                ? formatDate(range.dates[0])
+                                : `${formatDate(range.dates[0])} — ${formatDate(range.dates[range.dates.length - 1])}`
+                              }
+                            </div>
+                            <div className="vacation-range-count">
+                              {range.dates.length} day{range.dates.length > 1 ? 's' : ''}
+                            </div>
+                            {range.notes && <div className="vacation-range-notes">{range.notes}</div>}
+                          </div>
+                          <button
+                            className="delete-btn"
+                            onClick={() => handleDeleteVacationRange(range.dates)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <form className="add-form" onSubmit={handleAddVacation}>
+                    <div className="date-range-row">
+                      <div className="form-group">
+                        <label className="form-label">Start Date</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={vacStartDate}
+                          onChange={(e) => setVacStartDate(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">End Date</label>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={vacEndDate}
+                          onChange={(e) => setVacEndDate(e.target.value)}
+                          min={vacStartDate}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Notes (optional)</label>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., Family vacation"
+                        value={vacNotes}
+                        onChange={(e) => setVacNotes(e.target.value)}
+                      />
+                    </div>
+                    <button type="submit" className="submit-btn" disabled={vacSubmitting || !vacStartDate || !vacEndDate}>
+                      {vacSubmitting ? 'Adding...' : 'Add Vacation'}
+                    </button>
+                  </form>
+                </div>
               </div>
             </div>
           </div>
