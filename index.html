@@ -601,6 +601,21 @@
     
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // n8n webhook configuration
+    const N8N_WEBHOOK_URL = 'https://ben9thave.app.n8n.cloud/webhook/update-availability';
+
+    async function triggerWebhook(action, date) {
+      try {
+        await fetch(N8N_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, date })
+        });
+      } catch (error) {
+        console.error('Webhook error:', error);
+      }
+    }
+
     function App() {
       const [quotas, setQuotas] = useState([]);
       const [specialDates, setSpecialDates] = useState([]);
@@ -673,6 +688,7 @@
 
           if (error) throw error;
 
+          await triggerWebhook('special_date_added', newDate);
           showToast('Special date added successfully');
           setNewDate('');
           setNewSlots('3');
@@ -692,6 +708,7 @@
           const { error } = await supabase.from('special_dates').delete().eq('date', date);
           if (error) throw error;
 
+          await triggerWebhook('special_date_removed', date);
           showToast('Special date removed');
           fetchData();
         } catch (error) {
@@ -734,6 +751,10 @@
           const { error } = await supabase.from('vacation_days').upsert(insertData, { onConflict: 'date' });
           if (error) throw error;
 
+          // Trigger webhook for each date in range
+          for (const date of dates) {
+            await triggerWebhook('vacation_added', date);
+          }
           showToast(`Added ${dates.length} vacation day${dates.length > 1 ? 's' : ''}`);
           setVacStartDate('');
           setVacEndDate('');
@@ -761,6 +782,10 @@
 
           if (error) throw error;
 
+          // Trigger webhook for each date in range
+          for (const date of dates) {
+            await triggerWebhook('vacation_removed', date);
+          }
           showToast('Vacation removed');
           fetchData();
         } catch (error) {
