@@ -645,6 +645,15 @@
       font-size: 14px;
     }
 
+    .login-success {
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid var(--success);
+      color: var(--success);
+      padding: 12px 16px;
+      border-radius: 3px;
+      font-size: 14px;
+    }
+
     .logout-btn {
       background: transparent;
       border: 1px solid var(--border);
@@ -763,9 +772,96 @@
       );
     }
 
+    // Set Password Page Component (for invites and password reset)
+    function SetPasswordPage({ onComplete, isInvite }) {
+      const [password, setPassword] = useState('');
+      const [confirmPassword, setConfirmPassword] = useState('');
+      const [error, setError] = useState('');
+      const [success, setSuccess] = useState('');
+      const [loading, setLoading] = useState(false);
+
+      async function handleSubmit(e) {
+        e.preventDefault();
+        setError('');
+
+        if (password.length < 6) {
+          setError('Password must be at least 6 characters');
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          setError('Passwords do not match');
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) throw error;
+
+          setSuccess('Password set successfully! Redirecting...');
+          setTimeout(() => {
+            onComplete();
+          }, 1500);
+        } catch (err) {
+          setError(err.message || 'Failed to set password');
+        }
+        setLoading(false);
+      }
+
+      return (
+        <div className="login-container">
+          <div className="login-card">
+            <div className="login-header">
+              <div className="login-logo">Murakami Roofing</div>
+              <h1 className="login-title">{isInvite ? 'Set Your Password' : 'Reset Password'}</h1>
+              <p className="login-subtitle">
+                {isInvite ? 'Create a password to access the admin portal' : 'Enter your new password'}
+              </p>
+            </div>
+            <form className="login-form" onSubmit={handleSubmit}>
+              {error && <div className="login-error">{error}</div>}
+              {success && <div className="login-success">{success}</div>}
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  minLength={6}
+                  required
+                  disabled={!!success}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm Password</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  minLength={6}
+                  required
+                  disabled={!!success}
+                />
+              </div>
+              <button type="submit" className="submit-btn" disabled={loading || !!success}>
+                {loading ? 'Setting Password...' : 'Set Password'}
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
       const [session, setSession] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
+      const [recoveryMode, setRecoveryMode] = useState(false);
+      const [isInvite, setIsInvite] = useState(false);
       const [quotas, setQuotas] = useState([]);
       const [specialDates, setSpecialDates] = useState([]);
       const [vacationDays, setVacationDays] = useState([]);
@@ -785,15 +881,41 @@
       const [vacNotes, setVacNotes] = useState('');
       const [vacSubmitting, setVacSubmitting] = useState(false);
 
-      // Check for existing session on mount
+      // Check for existing session on mount and handle auth callbacks
       useEffect(() => {
+        // Check URL hash for invite or recovery type
+        const hash = window.location.hash;
+        const isInviteLink = hash.includes('type=invite') || hash.includes('type=signup');
+        const isRecoveryLink = hash.includes('type=recovery');
+
+        if (isInviteLink) {
+          setIsInvite(true);
+          setRecoveryMode(true);
+        } else if (isRecoveryLink) {
+          setIsInvite(false);
+          setRecoveryMode(true);
+        }
+
         supabase.auth.getSession().then(({ data: { session } }) => {
           setSession(session);
           setAuthLoading(false);
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
           setSession(session);
+
+          // Detect password recovery event
+          if (event === 'PASSWORD_RECOVERY') {
+            setRecoveryMode(true);
+            setIsInvite(false);
+          }
+
+          // Clear recovery mode after successful password update
+          if (event === 'USER_UPDATED' && recoveryMode) {
+            setRecoveryMode(false);
+            // Clear the hash from URL
+            window.history.replaceState(null, '', window.location.pathname);
+          }
         });
 
         return () => subscription.unsubscribe();
@@ -1070,6 +1192,20 @@
               Loading...
             </div>
           </div>
+        );
+      }
+
+      // Show password set/reset form if in recovery mode
+      if (recoveryMode && session) {
+        return (
+          <SetPasswordPage
+            isInvite={isInvite}
+            onComplete={() => {
+              setRecoveryMode(false);
+              setIsInvite(false);
+              window.history.replaceState(null, '', window.location.pathname);
+            }}
+          />
         );
       }
 
